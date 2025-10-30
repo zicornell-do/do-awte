@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: dynamic-split--
+spec:
+  entrypoint: process-batches
+  arguments:
+    parameters:
+      - name: sentence
+        value: |
+          "hello hi howdy greetings aloha"
+      - name: delimiter
+        value: " "
+  templates:
+    - name: process-batches
+      steps:
+      - - name: batch-inputs
+          arguments:
+            parameters:
+              - name: sentence
+                value: "{{workflow.parameters.sentence}}"
+              - name: delimiter
+                value: "{{workflow.parameters.delimiter}}"
+          template: batcher
+      - - name: word-spew
+          template: spew
+          arguments:
+            parameters:
+            - name: word
+              value: "{{item}}"
+          withParam: "{{steps.batch-inputs.outputs.result}}"
+
+    - name: batcher
+      inputs:
+        parameters:
+          - name: sentence
+          - name: delimiter
+      script:
+        image: apteno/alpine-jq:latest
+        command: [sh]
+        source: |
+          echo -n "{{inputs.parameters.sentence}}" | jq -R "split(\"{{inputs.parameters.delimiter}}\")"
+
+    - name: spew
+      inputs:
+        parameters:
+          - name: word
+      script:
+        image: alpine:latest
+        command: [sh]
+        source: |
+          echo "{{inputs.parameters.word}}"
